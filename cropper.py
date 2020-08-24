@@ -6,6 +6,42 @@ import numpy as np
 from typing import Tuple
 
 SCANNER_PLATE_RADIUS = 1044 // 2
+RED_COLOR = (0, 0, 255)
+
+
+def to_grayscale(image):
+    return cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+
+
+def edge_detection(image):
+    return cv.Canny(image, threshold1=60, threshold2=120)
+
+
+def blur(size=5):
+    def apply(image):
+        return cv.GaussianBlur(image, ksize=(size, size), sigmaX=0)
+    return apply
+
+
+def find_circles(image):
+    return cv.HoughCircles(
+        image, cv.HOUGH_GRADIENT, dp=1.3, minDist=SCANNER_PLATE_RADIUS * 2 - 50, minRadius=480, maxRadius=540
+    )
+
+
+def get_circle_centers(circles):
+    return circles[0, :, :2].astype(int)
+
+
+def detect_plate_circles(image):
+    cropping_pipeline = pipeline(
+        to_grayscale,
+        blur(3),
+        edge_detection,
+        find_circles,
+        get_circle_centers,
+    )
+    return cropping_pipeline(image)
 
 
 def clear_outside_plate(image: np.ndarray) -> np.ndarray:
@@ -34,23 +70,88 @@ def coordinates_to_positions(centers):
     return (centers - centers.min(axis=0) + SCANNER_PLATE_RADIUS) // (SCANNER_PLATE_RADIUS * 2)
 
 
-def crop_plates(path: Path, output_folder: Path) -> None:
-    scanner_image = cv.imread(str(path))
-    gray = cv.cvtColor(scanner_image, cv.COLOR_BGR2GRAY)
-    blur = cv.GaussianBlur(gray, ksize=(5, 5), sigmaX=0)
-    canny = cv.Canny(blur, threshold1=60, threshold2=120)
-    circle_centers = cv.HoughCircles(
-        canny, cv.HOUGH_GRADIENT, dp=2, minDist=900, minRadius=480, maxRadius=540)[0, :, :2]
-    for i, center in enumerate(sorted_plate_centers(circle_centers.astype(int))):
+def pipeline(*functions):
+    def call(image):
+        for function in functions:
+            image = function(image)
+        return image
+
+    return call
+
+
+def crop_plates(image, circle_centers):
+    return [cut_plate(image, center) for center in sorted_plate_centers(circle_centers)]
+
+
+def get_combined_shape(circle_centers):
+    positions = coordinates_to_positions(circle_centers)
+    columns, rows = positions.max(0) + 1
+    return rows, columns
+
+
+def show_detected_plates(image):
+    centers = detect_plate_circles(image)
+    draw_plate_circles(image, centers)
+    return image
+
+
+def draw_plate_circles(image, centers):
+    for center in centers:
+        cv.circle(image, tuple(center), radius=SCANNER_PLATE_RADIUS, color=RED_COLOR, thickness=7)
+
+
+def combine_plates(plates, shape):
+    rows, columns = shape
+    diameter = SCANNER_PLATE_RADIUS * 2
+    final_image = np.zeros((rows * diameter, columns * diameter, 3)).astype('uint8')
+    for i in range(rows):
+        for j in range(columns):
+            final_image[i * diameter: (i + 1) * diameter, j * diameter: (j + 1) * diameter, :] = plates[i * columns + j]
+    return final_image
+
+
+def save_combined_plates(output_folder, path, combined_image):
+    cv.imwrite(str(output_folder / f'{path.stem}-cropped{path.suffix}'), combined_image)
+
+
+def save_separate_plates(output_folder, path, plates):
+    for i, plate in enumerate(plates):
         print(path.stem, i)
-        plate = cut_plate(scanner_image, center)
         cv.imwrite(str(output_folder / f'{path.stem}-{i + 1}{path.suffix}'), plate)
 
 
+def process_path(path: Path, output_folder: Path, action) -> None:
+    output_folder.mkdir(parents=True, exist_ok=True)
+    scanner_image = cv.imread(str(path))
+    print(f'Processing {path.name}')
+
+    plate_centers = detect_plate_circles(scanner_image)
+    action(output_folder, path, scanner_image, plate_centers)
+
+
+def _save_separate_plates(output_folder, path, image, centers):
+    plates = crop_plates(image, centers)
+    save_separate_plates(output_folder, path, plates)
+
+
+def _save_combined_plates(output_folder, path, image, centers):
+    plates = crop_plates(image, centers)
+    shape = get_combined_shape(centers)
+    save_combined_plates(output_folder, path, combine_plates(plates, shape))
+
+
+def _mark_plates(output_folder, path, image, centers):
+    draw_plate_circles(image, centers)
+    cv.imwrite(str(output_folder / f'{path.stem}-circles{path.suffix}'), image)
+
+
 def main() -> None:
-    for plate in Path('data/Gal5FOA_2020-08-17/').glob('*.tif'):
-        crop_plates(plate, Path('data/Gal5FOA_2020-08-17-cropped/'))
+    for plate in sorted(Path('cropper-hard-cases').glob('*.tif')):
+        process_path(plate, Path('results/circles'), _mark_plates)
 
 
 if __name__ == '__main__':
     main()
+
+
+# todo test for number of found plates and for their centers
