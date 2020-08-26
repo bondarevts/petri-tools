@@ -41,7 +41,7 @@ def detect_plate_circles(image):
         find_circles,
         get_circle_centers,
     )
-    return cropping_pipeline(image)
+    return sorted_plate_centers(cropping_pipeline(image))
 
 
 def clear_outside_plate(image: np.ndarray) -> np.ndarray:
@@ -80,7 +80,7 @@ def pipeline(*functions):
 
 
 def crop_plates(image, circle_centers):
-    return [cut_plate(image, center) for center in sorted_plate_centers(circle_centers)]
+    return [cut_plate(image, center) for center in circle_centers]
 
 
 def get_combined_shape(circle_centers):
