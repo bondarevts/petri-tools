@@ -95,9 +95,12 @@ def show_detected_plates(image):
     return image
 
 
-def draw_plate_circles(image, centers):
-    for center in centers:
+def draw_plate_circles(image, centers, *, with_numbers=False):
+    for i, center in enumerate(centers):
         cv.circle(image, tuple(center), radius=SCANNER_PLATE_RADIUS, color=RED_COLOR, thickness=7)
+        if with_numbers:
+            cv.putText(image, str(i + 1), tuple(center + (-50, 50)),
+                       fontFace=cv.FONT_HERSHEY_SIMPLEX, fontScale=10, color=RED_COLOR, thickness=14)
 
 
 def combine_plates(plates, shape):

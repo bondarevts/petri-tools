@@ -173,7 +173,7 @@ def show_image_with_cropping_preview(window, values, path):
 
     centers = cropper.detect_plate_circles(image)
     plates = cropper.crop_plates(image, centers)
-    cropper.draw_plate_circles(image, centers)
+    cropper.draw_plate_circles(image, centers, with_numbers=True)
     update_image(window, get_scaled_image(values, image, scale))
 
     combined_image = cropper.combine_plates(plates, shape=cropper.get_combined_shape(centers))
@@ -202,4 +202,3 @@ if __name__ == '__main__':
 
 
 # todo show numbers over found plates
-# todo two ways of saving: separate plates and combined
