@@ -138,34 +138,6 @@ def process_files(values, files):
         cropper.process_path(f, output, action)
 
 
-def process_events(window):
-    event, values = window.read()
-    if event == sg.WINDOW_CLOSED:
-        return False
-
-    if event == Key.folder:
-        process_folder_update(values, window)
-        return True
-
-    if event == Key.file_list:
-        process_selection_update(values, window)
-        return True
-
-    if event == Key.show_preview:
-        process_selection_update(values, window)
-        return True
-
-    if event == Key.crop_selected:
-        process_crop_selected(values)
-        return True
-
-    if event == Key.crop_all:
-        process_crop_all(values)
-        return True
-
-    return True
-
-
 def process_folder_update(values, window):
     window[Key.file_list].update([f.name for f in folder_files(values)])
     window[Key.output_folder].update(Path(values[Key.folder]) / 'cropped')
@@ -230,6 +202,34 @@ def update_image(window, image: Optional[bytes]):
 
 def update_preview(window, image: Optional[bytes]):
     window[Key.preview].update(data=image)
+
+
+def process_events(window):
+    event, values = window.read()
+    if event == sg.WINDOW_CLOSED:
+        return False
+
+    if event == Key.folder:
+        process_folder_update(values, window)
+        return True
+
+    if event == Key.file_list:
+        process_selection_update(values, window)
+        return True
+
+    if event == Key.show_preview:
+        process_selection_update(values, window)
+        return True
+
+    if event == Key.crop_selected:
+        process_crop_selected(values)
+        return True
+
+    if event == Key.crop_all:
+        process_crop_all(values)
+        return True
+
+    return True
 
 
 def main() -> None:
