@@ -104,9 +104,10 @@ def combine_plates(plates, shape):
     rows, columns = shape
     diameter = SCANNER_PLATE_RADIUS * 2
     final_image = np.zeros((rows * diameter, columns * diameter, 3)).astype('uint8')
-    for i in range(rows):
-        for j in range(columns):
-            final_image[i * diameter: (i + 1) * diameter, j * diameter: (j + 1) * diameter, :] = plates[i * columns + j]
+    for i, plate in enumerate(plates):
+        top = (i // columns) * diameter
+        left = (i % columns) * diameter
+        final_image[top: top + diameter, left: left + diameter, :] = plate
     return final_image
 
 
