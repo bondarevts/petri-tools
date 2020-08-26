@@ -145,7 +145,10 @@ def process_folder_update(values, window):
 
 def folder_files(values):
     folder = Path(values[Key.folder])
-    files = sorted(folder.iterdir())
+    try:
+        files = sorted(folder.iterdir())
+    except OSError:
+        files = []
     return [
         f for f in files
         if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
