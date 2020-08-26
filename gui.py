@@ -13,28 +13,35 @@ IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.tiff', '.tif', '.bmp'}
 
 class Key(enum.Enum):
     folder = 'folder'
+    output_folder = 'output folder'
     file_list = 'file list'
     width = 'width'
     height = 'height'
     show_preview = 'show preview'
+    crop_type = 'crop type'
     crop_selected = 'crop selected'
     crop_all = 'crop all'
     image = 'image'
     preview = 'preview'
 
 
+class CropType(enum.Enum):
+    separate = 'Crop as separate files'
+    combined = 'Crop into combined images'
+
+
 def create_layout():
     left_column = [
         [
             sg.Text('Folder'),
-            sg.InputText(size=(25, 1), enable_events=True, key=Key.folder),
+            sg.InputText(enable_events=True, key=Key.folder),
             sg.FolderBrowse(initial_folder=Path('~').expanduser()),
         ],
         [
             sg.Listbox(
                 values=[],
                 select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED,
-                enable_events=True, size=(40, 20),
+                enable_events=True, size=(65, 20),
                 key=Key.file_list,
             )
         ],
@@ -46,8 +53,14 @@ def create_layout():
         ],
         [sg.Checkbox('Show preview', key=Key.show_preview, enable_events=True)],
         [
+            sg.Text('Output folder'),
+            sg.InputText(Path('~').expanduser(), key=Key.output_folder),
+            sg.FolderBrowse(initial_folder=Path('~').expanduser())
+        ],
+        [
+            sg.InputOptionMenu([CropType.separate.value, CropType.combined.value], key=Key.crop_type),
+            sg.Button('Crop selected', key=Key.crop_selected),
             sg.Button('Crop all', key=Key.crop_all),
-            sg.Button('Crop selected', key=Key.crop_selected)
         ],
     ]
     image_column = [
@@ -60,16 +73,11 @@ def create_layout():
     ]
 
     return [[
-        sg.Column(left_column, element_justification='c'),
+        sg.Column(left_column, element_justification='l'),
         sg.VSeperator(),
         sg.Column(image_column, element_justification='c'),
         sg.Column(preview_column, element_justification='c', justification='center'),
     ]]
-
-
-def path_to_png_bytes(path: Path, max_size=None):
-    image = cv.imread(path.as_posix())
-    return image_to_png_bytes(image, max_size)
 
 
 def image_to_png_bytes(image, scale):
@@ -105,9 +113,33 @@ def with_preview(values):
     return values[Key.show_preview]
 
 
+def save_separately(values):
+    return values[Key.crop_type] == CropType.separate.value
+
+
+def output_folder(values):
+    return Path(values[Key.output_folder])
+
+
+def process_crop_selected(values):
+    process_files(values, selected_files(values))
+
+
+def process_crop_all(values):
+    process_files(values, folder_files(values))
+
+
+def process_files(values, files):
+    action = cropper._save_separate_plates if save_separately(values) else cropper._save_combined_plates
+    output = output_folder(values)
+
+    output.mkdir(exist_ok=True, parents=True)
+    for f in files:
+        cropper.process_path(f, output, action)
+
+
 def process_events(window):
     event, values = window.read()
-    print(event)
     if event == sg.WINDOW_CLOSED:
         return False
 
@@ -124,16 +156,27 @@ def process_events(window):
         return True
 
     if event == Key.crop_selected:
+        process_crop_selected(values)
+        return True
+
+    if event == Key.crop_all:
+        process_crop_all(values)
         return True
 
     return True
 
 
 def process_folder_update(values, window):
+    window[Key.file_list].update([f.name for f in folder_files(values)])
+
+
+def folder_files(values):
     folder = Path(values[Key.folder])
-    file_list = sorted(folder.iterdir())
-    file_names = [f.name for f in file_list if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS]
-    window[Key.file_list].update(file_names)
+    files = sorted(folder.iterdir())
+    return [
+        f for f in files
+        if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+    ]
 
 
 def process_selection_update(values, window):
@@ -199,6 +242,3 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
-
-
-# todo show numbers over found plates
