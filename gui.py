@@ -73,10 +73,10 @@ def create_layout():
     ]
 
     return [[
-        sg.Column(left_column, element_justification='l'),
+        sg.Column(left_column, element_justification='l', vertical_alignment='top'),
         sg.VSeperator(),
-        sg.Column(image_column, element_justification='c'),
-        sg.Column(preview_column, element_justification='c', justification='center'),
+        sg.Column(image_column, element_justification='c', vertical_alignment='top'),
+        sg.Column(preview_column, element_justification='c', vertical_alignment='top'),
     ]]
 
 
