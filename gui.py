@@ -1,5 +1,6 @@
 import enum
 from pathlib import Path
+from threading import Thread
 from typing import List
 from typing import Optional
 
@@ -9,6 +10,8 @@ import cv2 as cv
 import cropper
 
 IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.tiff', '.tif', '.bmp'}
+WAITING_GIF = sg.DEFAULT_BASE64_LOADING_GIF
+WAITING_FRAMES_DELAY_MS = 100
 
 
 class Key(enum.Enum):
@@ -23,6 +26,7 @@ class Key(enum.Enum):
     crop_all = 'crop all'
     image = 'image'
     preview = 'preview'
+    waiting_animation = 'waiting_animation'
 
 
 class CropType(enum.Enum):
@@ -33,7 +37,7 @@ class CropType(enum.Enum):
 def create_layout():
     left_column = [
         [
-            sg.Text('Folder'),
+            sg.Text('Folder', size=(10, 1)),
             sg.InputText(enable_events=True, key=Key.folder),
             sg.FolderBrowse(initial_folder=Path('~').expanduser()),
         ],
@@ -46,18 +50,18 @@ def create_layout():
             )
         ],
         [
-            sg.Text('Set max width'),
+            sg.Text('Set preview image max width'),
             sg.InputText('400', key=Key.width, size=(5, 1)),
             sg.Text('and height'),
             sg.InputText('800', key=Key.height, size=(5, 1)),
         ],
-        [sg.Checkbox('Show preview', key=Key.show_preview, enable_events=True)],
         [
-            sg.Text('Output folder'),
+            sg.Text('Output folder', size=(10, 1)),
             sg.InputText(Path('~').expanduser(), key=Key.output_folder),
             sg.FolderBrowse(initial_folder=Path('~').expanduser())
         ],
         [
+            sg.Checkbox('Show preview', key=Key.show_preview, enable_events=True),
             sg.InputOptionMenu([CropType.separate.value, CropType.combined.value], key=Key.crop_type),
             sg.Button('Crop selected', key=Key.crop_selected),
             sg.Button('Crop all', key=Key.crop_all),
@@ -194,15 +198,31 @@ def show_image(window, values, path):
 
 
 def show_image_with_cropping_preview(window, values, path):
-    image = cv.imread(path.as_posix())
-    scale = calculate_scale(values, image)
+    def make_preview():
+        nonlocal image, combined_image, scale
+        image = cv.imread(path.as_posix())
+        scale = calculate_scale(values, image)
 
-    centers = cropper.detect_plate_circles(image)
-    plates = cropper.crop_plates(image, centers)
-    cropper.draw_plate_circles(image, centers, with_numbers=True)
+        centers = cropper.detect_plate_circles(image)
+        plates = cropper.crop_plates(image, centers)
+        cropper.draw_plate_circles(image, centers, with_numbers=True)
+        combined_image = cropper.combine_plates(plates, shape=cropper.get_combined_shape(centers))
+
+    image = combined_image = scale = None
+    thread = Thread(target=make_preview, daemon=True)
+    thread.start()
+
+    waiting_window = sg.Window(
+        'Processing...',
+        [[sg.Image(data=WAITING_GIF, key=Key.waiting_animation)]],
+    )
+    while thread.is_alive():
+        waiting_window.read(timeout=WAITING_FRAMES_DELAY_MS)
+        waiting_window[Key.waiting_animation].update_animation(WAITING_GIF, WAITING_FRAMES_DELAY_MS)
+    thread.join()
+    waiting_window.close()
+
     update_image(window, get_scaled_image(values, image, scale))
-
-    combined_image = cropper.combine_plates(plates, shape=cropper.get_combined_shape(centers))
     update_preview(window, get_scaled_image(values, combined_image, scale))
 
 
