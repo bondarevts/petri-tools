@@ -132,9 +132,14 @@ def process_crop_all(values):
 def process_files(values, files):
     action = cropper._save_separate_plates if save_separately(values) else cropper._save_combined_plates
     output = output_folder(values)
+    total_files_to_process = len(files)
+    if total_files_to_process == 0:
+        return
 
     output.mkdir(exist_ok=True, parents=True)
-    for f in files:
+    for i, f in enumerate(files):
+        if not sg.OneLineProgressMeter('Cropping progress', i + 1, total_files_to_process, orientation='h'):
+            return
         cropper.process_path(f, output, action)
 
 
