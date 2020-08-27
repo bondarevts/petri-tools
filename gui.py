@@ -146,6 +146,8 @@ def process_files(values, files):
 def process_folder_update(values, window):
     window[Key.file_list].update([f.name for f in folder_files(values)])
     window[Key.output_folder].update(Path(values[Key.folder]) / 'cropped')
+    update_image(window, image=None)
+    update_preview(window, image=None)
 
 
 def folder_files(values):
